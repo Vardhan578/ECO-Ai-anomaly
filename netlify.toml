@@ -7,11 +7,19 @@
   publish = "."
   command = "python build-netlify.py || node build-netlify.js"
 
+# Transparent proxy for API calls to Render ML Backend
+[[redirects]]
+  from = "/api/*"
+  to = "https://eco-ai-anomaly.onrender.com/api/:splat"
+  status = 200
+  force = true
+
 # Single-Page Application (SPA) routing: redirect non-file paths to index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
 
 # Production Security & Performance Headers
 [[headers]]

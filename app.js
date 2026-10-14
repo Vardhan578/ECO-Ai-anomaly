@@ -7,7 +7,9 @@
 const ML_BACKEND = {
   url: (typeof window !== 'undefined' && window.ECOPULSE_CONFIG && window.ECOPULSE_CONFIG.API_URL)
     ? window.ECOPULSE_CONFIG.API_URL.replace(/\/+$/, '')
-    : 'http://127.0.0.1:5000',
+    : ((typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+        ? 'http://127.0.0.1:5000'
+        : 'https://eco-ai-anomaly.onrender.com'),
   connected: false,
   checking: false,
   features: [],
@@ -183,10 +185,30 @@ async function checkMlBackendHealth() {
   const dot = document.getElementById('mlBackendDot');
   const text = document.getElementById('mlBackendText');
   const offlineBanner = document.getElementById('mlBackendOfflineBanner');
+  const offlineUrlEl = document.getElementById('offlineBackendUrlDisplay');
+  const offlineHintEl = document.getElementById('offlineBackendHint');
+
+  // Synchronize ML_BACKEND.url with ECOPULSE_CONFIG
+  if (typeof window !== 'undefined' && window.ECOPULSE_CONFIG && window.ECOPULSE_CONFIG.API_URL) {
+    ML_BACKEND.url = window.ECOPULSE_CONFIG.API_URL.replace(/\/+$/, '');
+  }
+
+  // Pre-populate offline banner with active backend URL and contextual hint
+  if (offlineUrlEl) {
+    offlineUrlEl.textContent = ML_BACKEND.url;
+  }
+  if (offlineHintEl) {
+    if (typeof window !== 'undefined' && window.ECOPULSE_CONFIG && window.ECOPULSE_CONFIG.IS_LOCAL) {
+      offlineHintEl.innerHTML = 'Start <code>python server.py</code> to activate unsupervised ML anomaly scoring.';
+    } else {
+      offlineHintEl.innerHTML = 'The Render cloud instance may be spinning up from idle sleep (~30-50s) or check backend health.';
+    }
+  }
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    // 8-second timeout: cloud instance wakeups and cross-origin HTTPS requests
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const res = await fetch(`${ML_BACKEND.url}/api/health`, {
       method: 'GET',
@@ -195,21 +217,24 @@ async function checkMlBackendHealth() {
     });
     clearTimeout(timeoutId);
 
-    if (res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
-      ML_BACKEND.connected = true;
-      ML_BACKEND.features = data.features || [];
+      if (data && (data.status === 'healthy' || data.service)) {
+        ML_BACKEND.connected = true;
+        ML_BACKEND.features = data.features || [];
 
-      if (pill) {
-        pill.className = 'ml-backend-pill connected';
-        dot.className = 'status-dot connected';
-        text.textContent = 'ML Model: Active (IsolationForest)';
+        if (pill) {
+          pill.className = 'ml-backend-pill connected';
+          dot.className = 'status-dot connected';
+          text.textContent = 'ML Model: Active (IsolationForest)';
+        }
+        if (offlineBanner) offlineBanner.classList.remove('active');
+        return true;
       }
-      if (offlineBanner) offlineBanner.classList.remove('active');
-      return true;
     }
   } catch (err) {
-    // Backend offline
+    // Backend offline or unreachable
   }
 
   // Handle Backend Offline Gracefully (Requirement 10)
@@ -219,7 +244,10 @@ async function checkMlBackendHealth() {
     dot.className = 'status-dot disconnected';
     text.textContent = 'ML Backend: Offline';
   }
-  if (offlineBanner) offlineBanner.classList.add('active');
+  if (offlineBanner) {
+    if (offlineUrlEl) offlineUrlEl.textContent = ML_BACKEND.url;
+    offlineBanner.classList.add('active');
+  }
   return false;
 }
 

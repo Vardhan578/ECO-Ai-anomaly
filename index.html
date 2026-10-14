@@ -44,7 +44,7 @@
       <div style="display:flex; align-items:center; gap:0.6rem;">
         <span style="font-size:1.1rem;">⚠️</span>
         <div>
-          <strong>ML Backend Offline:</strong> The Python Flask service at <code>http://127.0.0.1:5000</code> is currently unreachable. Real IsolationForest inference is paused. Start <code>python server.py</code> to activate unsupervised ML anomaly scoring.
+          <strong>ML Backend Offline:</strong> The Python Flask service at <code id="offlineBackendUrlDisplay">http://127.0.0.1:5000</code> is currently unreachable. Real IsolationForest inference is paused. <span id="offlineBackendHint">Start <code>python server.py</code> to activate unsupervised ML anomaly scoring.</span>
         </div>
       </div>
       <button id="btnRetryBackend" style="background:#fef3c7; border:1px solid #d97706; padding:0.25rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.75rem; color:#92400e; cursor:pointer;">
