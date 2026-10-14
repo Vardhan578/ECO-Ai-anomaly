@@ -1,0 +1,34 @@
+# ==============================================================================
+# EcoPulse — Netlify Deployment Configuration (Frontend)
+# Configures build, routing, security headers, and transparent proxy for Render
+# ==============================================================================
+
+[build]
+  publish = "."
+  command = "python build-netlify.py || node build-netlify.js"
+
+# Single-Page Application (SPA) routing: redirect non-file paths to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Production Security & Performance Headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), camera=(), microphone=()"
+
+# Cache static assets for fast performance
+[[headers]]
+  for = "*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"

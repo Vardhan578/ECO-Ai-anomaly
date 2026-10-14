@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  ecopulse:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ecopulse:v2.0
+    container_name: ecopulse-app
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - HOST=0.0.0.0
+      - ENVIRONMENT=production
+      - CORS_ORIGINS=*
+      - DATABASE_PATH=/app/data/ecopulse.db
+      - SECRET_KEY=ecopulse-hackathon-demo-key-2026
+      - TARIFF_PER_LITER=0.0035
+    volumes:
+      - ecopulse-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  ecopulse-data:
+    driver: local

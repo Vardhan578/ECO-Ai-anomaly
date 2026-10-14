@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EcoPulse — AI-Powered Water Leakage Detection & Prevention System</title>
+  <meta name="description" content="EcoPulse is an environmental intelligence dashboard designed to monitor water flow, detect anomalies, prevent leakages, and conserve community water resources.">
+  
+  <!-- Modern Clean Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Local and CDN Chart.js -->
+  <script src="chart.min.js"></script>
+  <script>
+    // Fallback if local file fails for any reason
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
+
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Simulation Status Banner -->
+  <div class="app-container" style="padding-bottom: 0;">
+    <aside class="simulation-banner" role="status" aria-label="Simulation Status Notice">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <span class="sim-badge">Synthetic IoT Stream</span>
+        <div class="sim-text">
+          <strong>Hardware Notice:</strong> Dashboard readings are generated via simulated IoT flow sensors for demonstration and algorithmic evaluation. Physical meter calibration in progress.
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;">
+        <span id="liveClock" class="live-clock">--:--:--</span>
+      </div>
+    </aside>
+
+    <!-- ML Backend Offline Warning Banner (Displayed when Flask server is unreachable) -->
+    <aside id="mlBackendOfflineBanner" class="backend-offline-banner" role="status" aria-label="ML Backend Status Notice">
+      <div style="display:flex; align-items:center; gap:0.6rem;">
+        <span style="font-size:1.1rem;">⚠️</span>
+        <div>
+          <strong>ML Backend Offline:</strong> The Python Flask service at <code>http://127.0.0.1:5000</code> is currently unreachable. Real IsolationForest inference is paused. Start <code>python server.py</code> to activate unsupervised ML anomaly scoring.
+        </div>
+      </div>
+      <button id="btnRetryBackend" style="background:#fef3c7; border:1px solid #d97706; padding:0.25rem 0.6rem; border-radius:4px; font-weight:700; font-size:0.75rem; color:#92400e; cursor:pointer;">
+        Retry Connection
+      </button>
+    </aside>
+
+    <!-- Emergency Active Leakage Warning Banner (Hidden until leak triggered) -->
+    <div id="emergencyLeakBanner" class="emergency-leak-banner" role="alert">
+      <div class="emergency-content">
+        <div class="emergency-icon">⚠️</div>
+        <div>
+          <div id="emergencyTitle" class="emergency-title">CRITICAL LEAK DETECTED</div>
+          <div id="emergencyDesc" class="emergency-desc">Abnormal continuous water flow detected. Immediate inspection required.</div>
+        </div>
+      </div>
+      <div class="emergency-actions">
+        <button id="btnEmergencyIsolate" class="btn-emergency-action" title="Shut off zone valve">
+          🛡️ Isolate Zone Valve
+        </button>
+        <button id="btnEmergencyAck" class="btn-emergency-ack">
+          Acknowledge
+        </button>
+      </div>
+    </div>
+
+    <!-- 1. Header Section -->
+    <header class="dashboard-header">
+      <div class="header-brand">
+        <div class="logo-badge" aria-hidden="true">
+          <!-- EcoPulse Water Drop + Pulse Wave SVG -->
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" stroke="currentColor" fill="none"/>
+            <path d="M8.5 13.5l2.2-2 1.8 3.5 2.5-4 1.5 2.5" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Eco<span class="pulse-text">Pulse</span> <span class="version-badge">ML Edition v2.0</span></h1>
+          <p>Smart Water Monitoring &amp; AI Leakage Prevention System</p>
+        </div>
+      </div>
+
+      <div class="header-status-group">
+        <div id="headerStatusPill" class="status-pill">
+          <div class="status-dot"></div>
+          <span id="headerStatusText">LIVE MONITORING ACTIVE</span>
+        </div>
+
+        <!-- ML Backend Connection Status Pill -->
+        <div id="mlBackendPill" class="ml-backend-pill disconnected" title="Python Flask Backend Status">
+          <div id="mlBackendDot" class="status-dot disconnected"></div>
+          <span id="mlBackendText">ML Backend: Connecting...</span>
+        </div>
+
+        <button id="soundToggleBtn" class="sound-toggle-btn" title="Toggle Audio Alarms">
+          🔔 Sound On
+        </button>
+      </div>
+    </header>
+
+    <!-- Primary Navigation Bar (Dashboard, SQLite History, Sustainability Reports) -->
+    <nav class="main-nav-bar" role="tablist" aria-label="EcoPulse Primary Navigation">
+      <button id="navTabDashboard" class="nav-tab active" role="tab" aria-selected="true" data-view="dashboard">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+        Live Monitoring
+      </button>
+
+      <button id="navTabHistory" class="nav-tab" role="tab" aria-selected="false" data-view="history">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        Telemetry &amp; Alert History
+      </button>
+
+      <button id="navTabReports" class="nav-tab" role="tab" aria-selected="false" data-view="reports">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Consumption &amp; Savings Reports
+      </button>
+    </nav>
+
+    <!-- VIEW 1: Live Monitoring & AI Dashboard -->
+    <div id="viewDashboard" class="view-section active">
+
+    <!-- 2. Summary KPI Cards -->
+    <section class="kpi-grid" aria-label="Key Water Metrics">
+      <!-- Card 1: Current Flow Rate -->
+      <article class="kpi-card" id="kpiCardFlow">
+        <div class="kpi-header">
+          <span class="kpi-title">Current Flow Rate</span>
+          <div class="kpi-icon-wrap" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiFlowRate" class="kpi-value">8.6</span>
+          <span class="kpi-unit">L/min</span>
+        </div>
+        <div>
+          <span id="kpiFlowBadge" class="kpi-status-badge badge-normal">✓ Normal Flow</span>
+        </div>
+        <div class="kpi-footer-note">
+          <span>Aggregate across all active zones</span>
+          <span>Baseline: 5–22 L/m</span>
+        </div>
+      </article>
+
+      <!-- Card 2: Today's Consumption -->
+      <article class="kpi-card" id="kpiCardConsumption">
+        <div class="kpi-header">
+          <span class="kpi-title">Today's Consumption</span>
+          <div class="kpi-icon-wrap" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiConsumption" class="kpi-value">342.8</span>
+          <span class="kpi-unit">Litres</span>
+        </div>
+        <div>
+          <span class="kpi-status-badge badge-info">Target: 450 L/day</span>
+        </div>
+        <div class="kpi-progress-bar" title="Daily consumption vs budget">
+          <div id="kpiBudgetFill" class="kpi-progress-fill" style="width: 76%;"></div>
+        </div>
+        <div class="kpi-footer-note">
+          <span id="kpiBudgetNote">76% of daily budget (450 L)</span>
+        </div>
+      </article>
+
+      <!-- Card 3: Detected Anomalies & ML Score -->
+      <article class="kpi-card" id="kpiCardAnomalies">
+        <div class="kpi-header">
+          <span class="kpi-title">Detected Anomalies</span>
+          <div class="kpi-icon-wrap anomaly-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiAnomalies" class="kpi-value">0</span>
+          <span class="kpi-unit">Active</span>
+        </div>
+        <div>
+          <span id="kpiAnomalyBadge" class="kpi-status-badge badge-normal">✓ Zero Leaks</span>
+        </div>
+        <div class="kpi-footer-note">
+          <span>ML Anomaly Score: <strong id="kpiMlScore">0.14 (Normal)</strong></span>
+          <span>IsolationForest</span>
+        </div>
+      </article>
+
+
+      <!-- Card 4: Estimated Water Saved -->
+      <article class="kpi-card" id="kpiCardSavings">
+        <div class="kpi-header">
+          <span class="kpi-title">Estimated Water Saved</span>
+          <div class="kpi-icon-wrap" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpiWaterSaved" class="kpi-value">1,280</span>
+          <span class="kpi-unit">Litres</span>
+        </div>
+        <div>
+          <span id="kpiCostSaved" class="kpi-status-badge badge-normal">~$4.48 Cost Saved</span>
+        </div>
+        <div class="kpi-footer-note">
+          <span>Via early leak interception</span>
+          <span>This month</span>
+        </div>
+      </article>
+    </section>
+
+    <!-- 3. Interactive Simulation Controls Bar -->
+    <section class="controls-card" aria-label="Interactive Simulation Controls">
+      <div class="controls-label-group">
+        <div class="controls-heading">
+          <span>⚙️</span> Interactive Simulation Controls
+        </div>
+        <div class="controls-sub">
+          Test real-time AI anomaly detection, live alerts, and automatic isolation actions.
+        </div>
+      </div>
+
+      <div class="controls-button-group">
+        <button id="btnSimulateNormal" class="btn-ctrl btn-ctrl-normal" title="Simulate a routine tap or rinse cycle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polygon points="10 8 16 12 10 16 10 8"/>
+          </svg>
+          Simulate Normal Usage
+        </button>
+
+        <button id="btnSimulateLeak" class="btn-ctrl btn-ctrl-leak" title="Inject a simulated water leak event">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+          </svg>
+          Simulate Water Leak
+        </button>
+
+        <button id="btnResetSimulation" class="btn-ctrl btn-ctrl-reset" title="Reset all flows to default baseline">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 2v6h6M21 12A9 9 0 0 0 6 5.3L3 8"/>
+          </svg>
+          Reset Simulation
+        </button>
+
+        <button id="btnAcknowledgeAlerts" class="btn-ctrl btn-ctrl-ack" title="Acknowledge and mute active warnings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Acknowledge Alerts
+        </button>
+
+        <button id="btnOpenRulesModal" class="btn-ctrl btn-ctrl-engine" title="Configure Anomaly Detection Rules & Thresholds">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Detection Rules
+        </button>
+
+        <button id="btnRunTests" class="btn-ctrl btn-ctrl-test" title="Execute automated verification tests for detection rules">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <polyline points="9 15 11 17 15 13"/>
+          </svg>
+          Run Engine Tests
+        </button>
+
+        <button id="btnOpenMlModal" class="btn-ctrl btn-ctrl-ml" title="IsolationForest Machine Learning Architecture & Weights">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+            <line x1="6" y1="6" x2="6.01" y2="6"/>
+            <line x1="6" y1="18" x2="6.01" y2="18"/>
+          </svg>
+          ML Architecture
+        </button>
+
+        <button id="liveTickerToggle" class="live-stream-toggle" title="Pause or Resume Live Sensor Telemetry">
+          <span>🟢</span> Live Stream: <strong>Active</strong>
+        </button>
+      </div>
+    </section>
+
+    <!-- 4. Water Consumption Chart Section -->
+    <section class="chart-card" aria-label="Water Consumption Graph">
+      <div class="chart-header">
+        <div class="chart-title-wrap">
+          <h2>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2">
+              <path d="M3 3v18h18"/>
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+            </svg>
+            Water Consumption &amp; Flow Trends
+          </h2>
+          <p>Real-time telemetry and consumption pattern tracking over selectable intervals</p>
+        </div>
+
+        <div class="chart-range-picker" role="tablist" aria-label="Chart time range selection">
+          <button class="range-btn" data-range="1h" role="tab">Live (15m)</button>
+          <button class="range-btn active" data-range="24h" role="tab">Today (24h)</button>
+          <button class="range-btn" data-range="7d" role="tab">Past 7 Days</button>
+          <button class="range-btn" data-range="30d" role="tab">Past 30 Days</button>
+        </div>
+      </div>
+
+      <div class="chart-legend-row">
+        <div class="legend-item">
+          <div class="legend-color-line"></div>
+          <span>Water Flow / Volume</span>
+        </div>
+        <div class="legend-item">
+          <div class="legend-color-anomaly"></div>
+          <span>AI Anomaly Flagged Point</span>
+        </div>
+      </div>
+
+      <div class="chart-canvas-container">
+        <!-- Loading Overlay -->
+        <div id="chartLoadingOverlay" class="chart-loading-overlay">
+          <div class="spinner"></div>
+          <span style="font-size: 0.8rem; font-weight: 600; color: var(--teal-800);">Refreshing telemetry dataset...</span>
+        </div>
+        <canvas id="waterChart" aria-label="Water usage chart" role="img"></canvas>
+      </div>
+    </section>
+
+    <!-- 5. Two-Column Layout: Zone Monitoring & Leakage Alerts -->
+    <div class="two-col-grid">
+      
+      <!-- Zone Monitoring Grid -->
+      <section class="zone-section" aria-label="Zone Water Monitoring">
+        <div class="section-title-bar">
+          <div>
+            <h2>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              Zone Telemetry &amp; Isolation
+            </h2>
+            <div class="section-subtitle">Real-time localized flow &amp; pressure sensors with remote shut-off valve actuation</div>
+          </div>
+        </div>
+
+        <div id="zonesGrid" class="zone-grid">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </section>
+
+      <!-- Leakage Alerts Feed -->
+      <section class="alerts-card" aria-label="Leakage Alerts Feed">
+        <div class="alerts-header">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--red-500)" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            Leakage &amp; Anomaly Log
+          </h2>
+          <div style="display:flex; align-items:center; gap:0.5rem;">
+            <button id="btnExportAlerts" class="btn-export-log" title="Export incident history as CSV">
+              📥 Export CSV
+            </button>
+            <span id="alertsCountBadge" class="alerts-count-badge">0 Active</span>
+          </div>
+        </div>
+
+        <div id="alertsList" class="alerts-list">
+          <!-- Populated dynamically via app.js -->
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Live Telemetry Stream Inspector (Requirement 1 & 2) -->
+    <section class="telemetry-card" aria-label="Live Telemetry Sensor Stream">
+      <div class="telemetry-header">
+        <div>
+          <h3>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+            </svg>
+            Live Sensor Readings &amp; Telemetry Inspector
+          </h3>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:0.2rem;">
+            Real-time readings generated per zone with explicit timestamp, flow, pressure, operating status, and data source origin.
+          </p>
+        </div>
+        <div>
+          <span class="data-source-badge simulated">Data Origin: SIMULATED (Synthetic IoT)</span>
+        </div>
+      </div>
+
+      <div class="telemetry-table-wrapper">
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Monitored Zone</th>
+              <th>Flow Rate</th>
+              <th>Pressure</th>
+              <th>Operating Status</th>
+              <th>Detection Alert Level</th>
+              <th>Data Source</th>
+            </tr>
+          </thead>
+          <tbody id="telemetryTableBody">
+            <!-- Populated dynamically via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Water Conservation & Impact Section -->
+    <section class="conservation-card" aria-label="Water Conservation & Economic Impact">
+      <div class="conservation-header">
+        <h2>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--teal-700)" stroke-width="2">
+            <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          Water Conservation &amp; Economic Impact
+        </h2>
+        <span class="conservation-pill">Sustainability Intelligence</span>
+      </div>
+
+      <div class="conservation-metrics-grid">
+        <div class="conservation-stat-box">
+          <div class="stat-label">Estimated Wastage Avoided</div>
+          <div id="conserveAvoidedVal" class="stat-number">1,280 L</div>
+          <div class="stat-desc">Water saved through proactive anomaly isolation within &lt;10 minutes of leak occurrence.</div>
+        </div>
+
+        <div class="conservation-stat-box">
+          <div class="stat-label">Estimated Utility Savings</div>
+          <div id="conserveCostVal" class="stat-number">$4.48</div>
+          <div class="stat-desc">Direct municipal tariff cost avoided, excluding structural drywall and property damage prevention.</div>
+        </div>
+
+        <div class="conservation-stat-box">
+          <div class="stat-label">Equivalent Water Conserved</div>
+          <div id="conserveShowersVal" class="stat-number">37 Showers</div>
+          <div class="stat-desc">Calculated at standard 35-litre eco-shower duration equivalents saved for community reservoirs.</div>
+        </div>
+      </div>
+
+      <!-- Mandatory Calibration Disclaimer Note -->
+      <div class="conservation-disclaimer">
+        <div class="disclaimer-icon">ℹ️</div>
+        <div class="disclaimer-text">
+          <strong>Illustrative Estimation Model:</strong> All conservation volumes and financial savings displayed above are illustrative approximations. They are calculated based on benchmark municipal utility rates ($0.0035/L) and standard leak duration heuristics (where undetected residential leaks run unchecked for an average of 48 hours). Final audited metrics will calibrate dynamically upon integration with physical smart meter telemetry.
+        </div>
+      </div>
+    </section>
+
+    </div><!-- /viewDashboard -->
+
+    <!-- VIEW 2: Persistent Telemetry & Alert History Page (Requirements 4, 3, 8) -->
+    <section id="viewHistory" class="view-section" aria-label="Telemetry and Alert History">
+      <div class="view-header-bar">
+        <div>
+          <h2>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Persistent Telemetry &amp; Alert History (SQLite)
+          </h2>
+          <p>Query, filter, and inspect water-flow telemetry readings and anomaly incidents stored in SQLite.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <button id="btnExportHistoryCsv" class="btn-export-log" title="Export current filtered history to CSV">
+            📥 Export Filtered CSV
+          </button>
+          <button id="btnAcknowledgeAllHistory" class="btn-ctrl btn-ctrl-ack" style="padding:0.35rem 0.75rem; font-size:0.76rem;" title="Acknowledge all pending alerts">
+            ✓ Acknowledge All Alerts
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter Controls Card -->
+      <div class="history-filter-card">
+        <div class="filter-controls-grid">
+          <div class="filter-item">
+            <label for="filterStartDate">Start Date</label>
+            <input type="date" id="filterStartDate" class="filter-input">
+          </div>
+
+          <div class="filter-item">
+            <label for="filterEndDate">End Date</label>
+            <input type="date" id="filterEndDate" class="filter-input">
+          </div>
+
+          <div class="filter-item">
+            <label for="filterZoneSelect">Monitored Zone</label>
+            <select id="filterZoneSelect" class="filter-select">
+              <option value="all">All Monitored Zones</option>
+              <option value="kitchen">Kitchen</option>
+              <option value="bathroom">Bathroom</option>
+              <option value="garden">Garden Irrigation</option>
+              <option value="main_supply">Main Supply Line</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label for="filterSeveritySelect">Alert Severity</label>
+            <select id="filterSeveritySelect" class="filter-select">
+              <option value="all">All Severities</option>
+              <option value="normal">Normal Flow (No Alert)</option>
+              <option value="warning">Warning Incidents</option>
+              <option value="critical">Critical Leak Incidents</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label for="filterSourceSelect">Data Origin</label>
+            <select id="filterSourceSelect" class="filter-select">
+              <option value="all">All Data Sources</option>
+              <option value="simulated">Simulated (Synthetic IoT)</option>
+              <option value="real">Real Sensor (Physical Meter)</option>
+            </select>
+          </div>
+
+          <div class="filter-actions-group">
+            <button id="btnApplyHistoryFilters" class="btn-filter-apply">Apply Filters</button>
+            <button id="btnResetHistoryFilters" class="btn-filter-reset">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Summary Stats Bar -->
+      <div class="history-stats-bar">
+        <div class="stat-pill"><span id="historyMatchCount">0</span> Matching Readings</div>
+        <div class="stat-pill"><span id="historyAnomaliesCount">0</span> Flagged Anomalies</div>
+        <div class="stat-pill"><span id="historyConsumedLiters">0 L</span> Total Filtered Volume</div>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:0.5rem;">
+          <span id="historyPageInfo" style="font-size:0.78rem; color:var(--text-muted); font-weight:600;">Page 1</span>
+          <button id="btnPrevPage" class="btn-page-nav" disabled>&larr; Previous</button>
+          <button id="btnNextPage" class="btn-page-nav">Next &rarr;</button>
+        </div>
+      </div>
+
+      <!-- History Data Table -->
+      <div class="telemetry-table-wrapper" style="margin-top:1rem;">
+        <table class="telemetry-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Monitored Zone</th>
+              <th>Flow Rate</th>
+              <th>Pressure</th>
+              <th>Operating Status</th>
+              <th>Alert Severity</th>
+              <th>Data Source</th>
+              <th>ML Anomaly Score</th>
+              <th>Diagnosis / Action</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            <!-- Dynamically populated via app.js from SQLite -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- VIEW 3: Water Consumption & Sustainability Audit Report (Requirements 5, 6, 7) -->
+    <section id="viewReports" class="view-section" aria-label="Consumption and Savings Reports">
+      <div class="view-header-bar">
+        <div>
+          <h2>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--teal-600)" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+            Water Consumption &amp; Sustainability Audit Report
+          </h2>
+          <p>Audited consumption metrics, anomaly frequency, modeled wastage, and economic savings summary.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <select id="reportZoneFilter" class="filter-select" style="min-width:160px;">
+            <option value="all">All Monitored Zones</option>
+            <option value="kitchen">Kitchen</option>
+            <option value="bathroom">Bathroom</option>
+            <option value="garden">Garden Irrigation</option>
+            <option value="main_supply">Main Supply Line</option>
+          </select>
+          <button id="btnRefreshReport" class="btn-ctrl btn-ctrl-reset" style="padding:0.4rem 0.75rem; font-size:0.78rem;">
+            🔄 Refresh Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Critical Requirement 7: Explicit Distinction Callout -->
+      <div class="measurement-distinction-banner" role="region" aria-label="Measurement Methodology Distinction">
+        <div class="distinction-tag">METHODOLOGY NOTICE</div>
+        <div class="distinction-content">
+          <strong>Measurement Integrity Standard:</strong> EcoPulse maintains strict scientific distinction between <em>Measured Consumption</em> (direct physical flow volume recorded by calibrated meters) and <em>Estimated Savings / Wastage</em> (algorithmically inferred conservation projections based on early automated valve isolation vs. standard 48-hour undetected leak heuristics).
+        </div>
+      </div>
+
+      <!-- 4 Core Report Metric Cards (Requirement 6 & 7) -->
+      <div class="report-metrics-grid">
+        <!-- Card 1: Total Measured Consumption -->
+        <article class="report-card">
+          <div class="report-card-badge badge-measured">🔵 Direct Ground Truth</div>
+          <div class="report-card-title">Total Measured Consumption</div>
+          <div class="report-card-value-row">
+            <span id="repTotalMeasuredLiters" class="report-value">0</span>
+            <span class="report-unit">Litres</span>
+          </div>
+          <div class="report-subtext">Direct physical flow integrated across all recorded telemetry readings.</div>
+          <div class="report-stat-footer">
+            <span>Metered Utility Cost:</span>
+            <strong id="repMeasuredBillVal">$0.00</strong>
+          </div>
+        </article>
+
+        <!-- Card 2: Detected Anomalies & Leaks -->
+        <article class="report-card">
+          <div class="report-card-badge badge-warning">⚠️ Algorithmic Detection</div>
+          <div class="report-card-title">Detected Anomalies &amp; Leaks</div>
+          <div class="report-card-value-row">
+            <span id="repTotalAnomalies" class="report-value">0</span>
+            <span class="report-unit">Incidents</span>
+          </div>
+          <div class="report-subtext">Statistical outliers flagged by IsolationForest &amp; corroborated by hydraulic rules.</div>
+          <div class="report-stat-footer">
+            <span>Confirmed Leaks:</span>
+            <strong id="repConfirmedLeaksVal">0</strong>
+          </div>
+        </article>
+
+        <!-- Card 3: Estimated Water Wastage -->
+        <article class="report-card">
+          <div class="report-card-badge badge-wastage">🔴 Algorithmic Estimate</div>
+          <div class="report-card-title">Estimated Water Wastage</div>
+          <div class="report-card-value-row">
+            <span id="repEstimatedWastageLiters" class="report-value">0</span>
+            <span class="report-unit">Litres Lost</span>
+          </div>
+          <div class="report-subtext">Calculated volume lost during ongoing anomalous leak intervals before valve shut-off.</div>
+          <div class="report-stat-footer">
+            <span>Wasted Cost Value:</span>
+            <strong id="repWastedCostVal">$0.00</strong>
+          </div>
+        </article>
+
+        <!-- Card 4: Estimated Water & Cost Savings -->
+        <article class="report-card">
+          <div class="report-card-badge badge-savings">🟢 Algorithmic Projection</div>
+          <div class="report-card-title">Estimated Water &amp; Cost Savings</div>
+          <div class="report-card-value-row">
+            <span id="repEstimatedSavingsLiters" class="report-value">0</span>
+            <span class="report-unit">Litres Saved</span>
+          </div>
+          <div class="report-subtext">Water prevented from unchecked drainage via rapid early detection.</div>
+          <div class="report-stat-footer">
+            <span>Utility Savings:</span>
+            <strong id="repCostSavingsVal" style="color:var(--green-700); font-size:1.05rem;">$0.00</strong>
+          </div>
+        </article>
+      </div>
+
+      <!-- Daily & Monthly Summaries Section (Requirement 5) -->
+      <div class="summaries-dual-grid" style="margin-top:1.5rem;">
+        <!-- Daily Summaries Table -->
+        <div class="summary-box">
+          <div class="summary-box-header">
+            <h3>📅 Daily Consumption Summaries (Past 14 Days)</h3>
+            <span class="badge-pass" style="font-size:0.7rem;">Automated Aggregation</span>
+          </div>
+          <div class="table-responsive">
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Measured Litres</th>
+                  <th>Readings</th>
+                  <th>Anomalies</th>
+                  <th>Avg Flow</th>
+                </tr>
+              </thead>
+              <tbody id="dailySummaryTableBody">
+                <!-- Populated dynamically via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Monthly Summaries Table -->
+        <div class="summary-box">
+          <div class="summary-box-header">
+            <h3>📆 Monthly Consumption Summaries</h3>
+            <span class="badge-pass" style="font-size:0.7rem;">Long-Term Trends</span>
+          </div>
+          <div class="table-responsive">
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Total Measured Litres</th>
+                  <th>Recorded Readings</th>
+                  <th>Flagged Anomalies</th>
+                  <th>Confirmed Leaks</th>
+                </tr>
+              </thead>
+              <tbody id="monthlySummaryTableBody">
+                <!-- Populated dynamically via app.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /app-container -->
+
+  <!-- 7. Footer -->
+  <footer class="dashboard-footer">
+    <div class="footer-content">
+      <div>EcoPulse — AI-Powered Water Leakage Detection &amp; Prevention System</div>
+      <div class="footer-tags">
+        <span>Clean White Aesthetic</span>
+        <span>Deep Navy Typography</span>
+        <span>Teal Accents</span>
+        <span>Green Safety</span>
+        <span>Red Warnings</span>
+        <span>Chart.js Engine</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- Modal 1: Leak Simulation Scenario Selection Modal -->
+  <div id="leakScenarioModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="modalTitle" class="modal-title">Select Leak Simulation Scenario</h3>
+        <button id="modalCloseBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1rem;">
+          Choose an anomaly scenario to observe how the detection engine classifies the pattern, triggers visible warnings, and manages active incidents:
+        </p>
+
+        <div class="leak-options-grid">
+          <!-- Scenario 1: Continuous Low Flow Leak (Running Toilet) -->
+          <div class="leak-option-btn" onclick="triggerLeakScenario('bathroom', 'warning', 1.8, 'Continuous Low Flow (Running Toilet Valve)', 'Running flapper valve trickling continuously without returning to 0.')">
+            <span style="font-size:1.6rem;">🚽</span>
+            <div class="leak-option-info">
+              <h4>Bathroom: Running Toilet Flapper (1.8 L/min) — Warning</h4>
+              <p>Continuous low-flow trickle for unusually long period (>35s). Detected by Rule 4.</p>
+            </div>
+          </div>
+
+          <!-- Scenario 2: Catastrophic Flow Burst -->
+          <div class="leak-option-btn" onclick="triggerLeakScenario('kitchen', 'critical', 24.5, 'Catastrophic Supply Pipe Rupture', 'Sudden massive surge far exceeding zone burst threshold of 18.0 L/min.')">
+            <span style="font-size:1.6rem;">💥</span>
+            <div class="leak-option-info">
+              <h4>Kitchen: Burst Under-Sink Main (24.5 L/min) — Critical</h4>
+              <p>Abnormally high flow exceeding zone burst rating. Instant critical alert by Rule 2.</p>
+            </div>
+          </div>
+
+          <!-- Scenario 3: Sudden Pressure Drop Rupture -->
+          <div class="leak-option-btn" onclick="triggerLeakScenario('garden', 'critical', 16.0, 'Sudden Pressure Drop & Rupture', 'Pressure collapsed from 3.5 to 1.9 bar (1.6 bar drop) accompanied by high flow.', 1.9)">
+            <span style="font-size:1.6rem;">📉</span>
+            <div class="leak-option-info">
+              <h4>Garden: Severe Line Rupture with Pressure Drop — Critical</h4>
+              <p>Pressure plummets by 1.6 bar with flow of 16.0 L/min. Detected by Rule 1.</p>
+            </div>
+          </div>
+
+          <!-- Scenario 4: Off-Hours Inactive Zone Flow -->
+          <div class="leak-option-btn" onclick="triggerLeakScenario('garden', 'warning', 6.0, 'Off-Hours Unscheduled Flow', 'Irrigation line active during unscheduled midnight inactive window.')">
+            <span style="font-size:1.6rem;">🌙</span>
+            <div class="leak-option-info">
+              <h4>Garden: Off-Hours Midnight Irrigation (6.0 L/min) — Warning</h4>
+              <p>Flow detected outside permitted operational window. Detected by Rule 3.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Anomaly Detection Engine Rules & Configuration Modal -->
+  <div id="engineRulesModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rulesModalTitle">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3 id="rulesModalTitle" class="modal-title">⚙️ Anomaly Detection Engine Configuration</h3>
+        <button id="rulesModalCloseBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:1rem;">
+          EcoPulse evaluates every water-flow reading against zone-specific baselines, duration heuristics, and hydraulic pressure differentials.
+        </p>
+
+        <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem; padding:0.6rem 0.8rem; background:var(--bg-card-subtle); border-radius:var(--radius-md);">
+          <span style="font-size:0.82rem; font-weight:700;">Detection Sensitivity:</span>
+          <select id="engineSensitivitySelect" style="padding:0.3rem 0.6rem; border-radius:var(--radius-sm); border:1px solid var(--border-light); font-size:0.82rem; font-weight:600;">
+            <option value="balanced" selected>Balanced (Standard Residential)</option>
+            <option value="strict">Strict (High Conservation / Commercial)</option>
+            <option value="relaxed">Relaxed (High Tolerance / Industrial)</option>
+          </select>
+          <span style="font-size:0.74rem; color:var(--text-muted); margin-left:auto;">Engine: Active</span>
+        </div>
+
+        <div class="config-rules-grid">
+          <div class="config-rule-card">
+            <div class="config-rule-header">
+              <span class="config-rule-title">Rule 1: Sudden Pressure Drop</span>
+              <span class="op-status status-abnormal">Critical</span>
+            </div>
+            <div class="config-rule-desc">
+              Triggers when hydraulic pressure drops by &ge; <strong>0.75 bar</strong> while flow rate is non-zero (&ge; 0.4 L/min). Detects catastrophic line shear.
+            </div>
+          </div>
+
+          <div class="config-rule-card">
+            <div class="config-rule-header">
+              <span class="config-rule-title">Rule 2: Catastrophic Flow Burst</span>
+              <span class="op-status status-abnormal">Critical</span>
+            </div>
+            <div class="config-rule-desc">
+              Triggers when flow exceeds the zone burst rating (Kitchen: 18 L/m, Bathroom: 16 L/m, Garden: 22 L/m, Main: 35 L/m).
+            </div>
+          </div>
+
+          <div class="config-rule-card">
+            <div class="config-rule-header">
+              <span class="config-rule-title">Rule 3: Inactive Zone Unscheduled Flow</span>
+              <span class="op-status status-elevated">Warning / Critical</span>
+            </div>
+            <div class="config-rule-desc">
+              Flags continuous flow (&gt;15s) occurring outside scheduled operational hours (e.g. Garden irrigation outside 17:00-19:00 window).
+            </div>
+          </div>
+
+          <div class="config-rule-card">
+            <div class="config-rule-header">
+              <span class="config-rule-title">Rule 4: Continuous Low-Flow Trickle</span>
+              <span class="op-status status-elevated">Warning</span>
+            </div>
+            <div class="config-rule-desc">
+              Flags low-rate continuous flow (0.4 &ndash; baseline max) persisting uninterrupted beyond duration threshold (Bathroom: 35s, Kitchen: 45s).
+            </div>
+          </div>
+
+          <div class="config-rule-card">
+            <div class="config-rule-header">
+              <span class="config-rule-title">Rule 5: Normal High Usage Accommodation</span>
+              <span class="op-status status-nominal">Normal</span>
+            </div>
+            <div class="config-rule-desc">
+              Elevated flows within permissible durations (filling pasta pot &lt;30s, short shower &lt;45s) remain classified as <strong>Normal</strong> to avoid false positives.
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Threshold Tuning Sliders Box -->
+        <div class="threshold-tuning-box">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <strong style="font-size:0.84rem; color:var(--text-primary);">🎛️ Dynamic Threshold Tuning (Live Engine Feedback)</strong>
+            <button id="btnResetThresholds" style="background:#ffffff; border:1px solid var(--border-light); font-size:0.72rem; padding:0.2rem 0.55rem; border-radius:4px; color:var(--text-secondary); cursor:pointer; font-weight:600;">Reset Defaults</button>
+          </div>
+          <p style="font-size:0.74rem; color:var(--text-muted); margin:0.35rem 0 0.75rem 0;">Adjust zone burst ratings and pressure drop trigger in real time. Changes take effect on the next telemetry tick.</p>
+          <div class="tuning-grid">
+            <div class="tuning-item">
+              <label for="sliderKitchenBurst">Kitchen Burst Rating: <span id="valKitchenBurst" style="color:var(--teal-700); font-variant-numeric:tabular-nums;">18.0 L/m</span></label>
+              <input type="range" id="sliderKitchenBurst" min="10" max="30" step="0.5" value="18.0">
+            </div>
+            <div class="tuning-item">
+              <label for="sliderBathroomBurst">Bathroom Burst Rating: <span id="valBathroomBurst" style="color:var(--teal-700); font-variant-numeric:tabular-nums;">16.0 L/m</span></label>
+              <input type="range" id="sliderBathroomBurst" min="10" max="25" step="0.5" value="16.0">
+            </div>
+            <div class="tuning-item">
+              <label for="sliderGardenBurst">Garden Burst Rating: <span id="valGardenBurst" style="color:var(--teal-700); font-variant-numeric:tabular-nums;">22.0 L/m</span></label>
+              <input type="range" id="sliderGardenBurst" min="12" max="35" step="0.5" value="22.0">
+            </div>
+            <div class="tuning-item">
+              <label for="sliderPressureDrop">Pressure Drop Trigger: <span id="valPressureDrop" style="color:var(--teal-700); font-variant-numeric:tabular-nums;">0.75 bar</span></label>
+              <input type="range" id="sliderPressureDrop" min="0.3" max="1.5" step="0.05" value="0.75">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Automated Test Suite Results Modal -->
+  <div id="testResultsModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="testModalTitle">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3 id="testModalTitle" class="modal-title">🧪 Detection Engine Automated Test Results</h3>
+        <button id="testModalCloseBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="testSummaryBanner" style="display:flex; align-items:center; justify-content:space-between; padding:0.75rem 1rem; background:var(--green-50); border:1px solid var(--green-200); border-radius:var(--radius-md); margin-bottom:1rem;">
+          <div style="font-weight:700; color:var(--green-800); font-size:0.92rem;">
+            ✓ All Engine Detection Rules Verified Successfully
+          </div>
+          <span id="testScoreBadge" class="badge-pass">7/7 Passed</span>
+        </div>
+
+        <table class="test-results-table">
+          <thead>
+            <tr>
+              <th>Test Scenario</th>
+              <th>Status</th>
+              <th>Outcome Details</th>
+            </tr>
+          </thead>
+          <tbody id="testResultsTableBody">
+            <!-- Populated dynamically via app.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Machine Learning Architecture & Weights Modal -->
+  <div id="mlArchitectureModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="mlModalTitle">
+    <div class="modal-box modal-box-wide">
+      <div class="modal-header">
+        <h3 id="mlModalTitle" class="modal-title">🧠 Machine Learning Architecture &amp; Anomaly Detection</h3>
+        <button id="mlModalCloseBtn" class="modal-close-btn" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--bg-card-subtle); border-radius:var(--radius-md); padding:0.85rem; margin-bottom:1rem; border:1px solid var(--border-light);">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+              <span style="font-weight:700; color:var(--text-primary); font-size:0.92rem;">Algorithm: IsolationForest</span>
+              <span class="badge-pass" style="margin-left:0.5rem; font-size:0.7rem;">Unsupervised Ensemble</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">
+              Estimators: <strong>120</strong> &bull; Contamination: <strong>4.0%</strong> &bull; ROC-AUC: <strong>0.9867</strong>
+            </div>
+          </div>
+          <p style="font-size:0.78rem; color:var(--text-secondary); margin-top:0.4rem; line-height:1.45;">
+            Isolation Forest isolates anomalies by randomly partitioning feature space using orthogonal hyperplanes. Because anomalous leaks exhibit extreme flow rates or abnormal durations, they require fewer tree splits and yield shorter path lengths <em>h(x)</em> compared to regular diurnal consumption.
+          </p>
+        </div>
+
+        <!-- 6 Continuous Input Features -->
+        <h4 style="font-size:0.84rem; font-weight:700; margin-bottom:0.4rem; color:var(--navy-900);">
+          Input Feature Vector (6 Continuous Dimensions):
+        </h4>
+        <div class="ml-feature-badge-list">
+          <span class="ml-feature-badge"><strong>1. flow_rate</strong> (L/min)</span>
+          <span class="ml-feature-badge"><strong>2. continuous_duration_sec</strong> (Seconds)</span>
+          <span class="ml-feature-badge"><strong>3. recent_consumption_liters</strong> (Trailing Window)</span>
+          <span class="ml-feature-badge"><strong>4. time_of_day_hour</strong> (0.0 – 23.99 Diurnal)</span>
+          <span class="ml-feature-badge"><strong>5. flow_diff_from_baseline</strong> (&Delta; Normal Peak)</span>
+          <span class="ml-feature-badge"><strong>6. pressure_delta</strong> (&Delta; bar from Nominal)</span>
+        </div>
+
+        <!-- Live ML Anomaly Score Meter -->
+        <div class="ml-score-meter-wrap">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <strong style="font-size:0.82rem; color:var(--text-primary);">Live Telemetry Anomaly Score:</strong>
+            <span id="mlModalScoreVal" style="font-size:1.15rem; font-weight:800; color:var(--teal-700); font-variant-numeric:tabular-nums;">0.140</span>
+          </div>
+          <div class="ml-meter-bar">
+            <div id="mlMeterIndicator" class="ml-meter-indicator" style="left: 14%;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted);">
+            <span>0.00 (Nominal Flow)</span>
+            <span>0.45 (Elevated Observation)</span>
+            <span>1.00 (Severe Anomaly)</span>
+          </div>
+          <div id="mlModalClassification" style="margin-top:0.6rem; font-size:0.78rem; font-weight:600; color:var(--green-700);">
+            Current Status: Normal Usage (Below 0.65 Outlier Decision Threshold)
+          </div>
+        </div>
+
+        <!-- Dataset Training Distribution -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:1rem;">
+          <div style="background:#f8fafc; border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:0.65rem;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700;">TRAINING BENCHMARK DATASET</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--navy-900); margin:0.2rem 0;">4,000 Samples</div>
+            <div style="font-size:0.72rem; color:var(--text-secondary);">
+              &bull; <strong>3,520</strong> Normal Diurnal Cycles (88%)<br>
+              &bull; <strong>480</strong> Simulated Leaks &amp; Bursts (12%)
+            </div>
+          </div>
+
+          <div style="background:#f8fafc; border:1px solid var(--border-light); border-radius:var(--radius-sm); padding:0.65rem;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700;">HYBRID DECISION FUSION</div>
+            <div style="font-size:1.1rem; font-weight:800; color:var(--teal-700); margin:0.2rem 0;">ML + Domain Rules</div>
+            <div style="font-size:0.72rem; color:var(--text-secondary);">
+              Statistical outliers undergo duration corroboration to suppress cooking and shower false alarms.
+            </div>
+          </div>
+        </div>
+
+        <!-- Mandatory Disclaimer -->
+        <div class="conservation-disclaimer" style="margin-top:1rem;">
+          <div class="disclaimer-icon">ℹ️</div>
+          <div class="disclaimer-text">
+            <strong>Synthetic Data &amp; Operational Certification Notice:</strong> This model is trained on reproducible synthetic residential usage distributions generated via <code>dataset_generator.py</code>. Real-world commercial deployment requires on-site meter calibration and baseline retraining for each unique plumbing topography.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detection Engine Module -->
+  <script src="detection-engine.js"></script>
+  <!-- Environment Injected Config (Netlify / Cloud) -->
+  <script src="env-config.js"></script>
+  <!-- Dynamic Deployment & Environment Configuration -->
+  <script src="config.js"></script>
+  <!-- Main JavaScript File -->
+  <script src="app.js"></script>
+</body>
+</html>
+

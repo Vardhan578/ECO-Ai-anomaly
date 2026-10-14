@@ -1,0 +1,26 @@
+# ==============================================================================
+# EcoPulse — Render Blueprint Deployment Specification
+# One-click deployment on Render (https://render.com)
+# ==============================================================================
+
+services:
+  - type: web
+    name: ecopulse-system
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 server:app
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: TARIFF_PER_LITER
+        value: "0.0035"
+      - key: SECRET_KEY
+        generateValue: true
